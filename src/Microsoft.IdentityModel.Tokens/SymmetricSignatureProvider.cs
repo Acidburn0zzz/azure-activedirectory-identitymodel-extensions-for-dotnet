@@ -59,9 +59,6 @@ namespace Microsoft.IdentityModel.Tokens
         public SymmetricSignatureProvider(SecurityKey key, string algorithm)
             : base(key, algorithm)
         {
-            if (key == null)
-                throw LogHelper.LogArgumentNullException(nameof(key));
-
             if (!key.CryptoProviderFactory.IsSupportedAlgorithm(algorithm, key))
                 throw LogHelper.LogExceptionMessage(new NotSupportedException(LogHelper.FormatInvariant(LogMessages.IDX10634, (algorithm ?? "null"), key)));
 
@@ -74,11 +71,13 @@ namespace Microsoft.IdentityModel.Tokens
             }
             catch (Exception ex)
             {
-                throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogHelper.FormatInvariant(LogMessages.IDX10634, (algorithm ?? "null"), key), ex));
+                throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogHelper.FormatInvariant(LogMessages.IDX10676, (algorithm ?? "null"), key), ex));
             }
 
             if (_keyedHash == null)
                 throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogHelper.FormatInvariant(LogMessages.IDX10672, key, (algorithm ?? "null"))));
+
+            WillCreateSignatures = true;
         }
 
         /// <summary>
