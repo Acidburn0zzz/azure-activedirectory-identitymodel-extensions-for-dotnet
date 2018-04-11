@@ -148,6 +148,7 @@ namespace Microsoft.IdentityModel.Tokens.Tests
             var context = TestUtilities.WriteHeader($"{this}.AsymmetricSignAndVerify", theoryData);
             try
             {
+
                 var signatureProviderVerify = CryptoProviderFactory.Default.CreateForVerifying(theoryData.VerifyingKey, theoryData.VerifyingAlgorithm);
                 var signatureProviderSign = CryptoProviderFactory.Default.CreateForSigning(theoryData.SigningKey, theoryData.SigningAlgorithm);
                 var bytes = Encoding.UTF8.GetBytes("GenerateASignature");
@@ -155,8 +156,8 @@ namespace Microsoft.IdentityModel.Tokens.Tests
                 if (!signatureProviderVerify.Verify(bytes, signature))
                     throw new SecurityTokenInvalidSignatureException("SignatureFailed");
 
-                CryptoProviderFactory.Default.ReleaseSignatureProvider(signatureProviderSign);
-                CryptoProviderFactory.Default.ReleaseSignatureProvider(signatureProviderVerify);
+                CryptoProviderFactory.Default.RemoveCachedSignatureProvider(signatureProviderSign);
+                CryptoProviderFactory.Default.RemoveCachedSignatureProvider(signatureProviderVerify);
                 theoryData.ExpectedException.ProcessNoException(context);
             }
             catch (Exception ex)

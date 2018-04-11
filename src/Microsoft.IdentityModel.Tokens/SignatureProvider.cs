@@ -62,6 +62,11 @@ namespace Microsoft.IdentityModel.Tokens
         public string Context { get; set; }
 
         /// <summary>
+        /// Gets or sets the <see cref="CryptoProviderFactory"/> that cached this <see cref="SignatureProvider"/>
+        /// </summary>
+        public CryptoProviderFactory CryptoProviderFactory { get; protected set; }
+
+        /// <summary>
         /// Gets the <see cref="SecurityKey"/>.
         /// </summary>
         public SecurityKey Key { get; private set; }

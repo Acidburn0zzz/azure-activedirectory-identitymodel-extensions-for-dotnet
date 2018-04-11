@@ -26,6 +26,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Security.Cryptography;
@@ -40,8 +41,8 @@ namespace Microsoft.IdentityModel.Tokens
     public class CryptoProviderFactory
     {
         private static CryptoProviderFactory _default;
-        private Dictionary<string, SignatureProvider> _signingSignatureProviders = new Dictionary<string, SignatureProvider>();
-        private Dictionary<string, SignatureProvider> _verifyingSignatureProviders = new Dictionary<string, SignatureProvider>();
+        private ConcurrentDictionary<string, SignatureProvider> _signingSignatureProviders = new ConcurrentDictionary<string, SignatureProvider>();
+        private ConcurrentDictionary<string, SignatureProvider> _verifyingSignatureProviders = new ConcurrentDictionary<string, SignatureProvider>();
 
         /// <summary>
         /// Returns the default <see cref="CryptoProviderFactory"/> instance.
@@ -409,7 +410,7 @@ namespace Microsoft.IdentityModel.Tokens
         /// <returns>the cache key to use for lookup</returns>
         public virtual string GetSignatureProviderCacheKey(SecurityKey key, string algorithm)
         {
-            return $"{key.GetType().ToString()}-{key.KeyId}-{algorithm}";
+            return $"{key.GetType()}-{key.KeyId}-{algorithm}";
         }
 
         /// <summary>
@@ -612,12 +613,37 @@ namespace Microsoft.IdentityModel.Tokens
         /// <param name="willCreateSignatures">allows partitioning between public and private <see cref="SignatureProvider"/>.</param>
         public virtual SignatureProvider GetCachedSignatureProvider(string cacheKey, bool willCreateSignatures)
         {
-            if (willCreateSignatures && _signingSignatureProviders.TryGetValue(cacheKey, out SignatureProvider signatureProvider))
-                return signatureProvider;
-            else if (_verifyingSignatureProviders.TryGetValue(cacheKey, out signatureProvider))
-                return signatureProvider;
+            if (willCreateSignatures)
+            {
+                if (_signingSignatureProviders.TryGetValue(cacheKey, out SignatureProvider signatureProvider))
+                    return signatureProvider;
+            }
+            else
+            {
+                if (_verifyingSignatureProviders.TryGetValue(cacheKey, out SignatureProvider signatureProvider))
+                    return signatureProvider;
+            }
 
             return null;
+        }
+
+        /// <summary>
+        /// Removes a <see cref="SignatureProvider"/> from the cache
+        /// </summary>
+        /// <param name="signatureProvider"><see cref="SignatureProvider"/> to cache</param>
+        public virtual void RemoveCachedSignatureProvider(SignatureProvider signatureProvider)
+        {
+            if (signatureProvider == null)
+                throw LogHelper.LogArgumentNullException(nameof(signatureProvider));
+
+            if (string.IsNullOrEmpty(signatureProvider.Key.KeyId))
+                return;
+
+            var cacheKey = GetSignatureProviderCacheKey(signatureProvider.Key, signatureProvider.Algorithm);
+            if (signatureProvider.WillCreateSignatures)
+                _signingSignatureProviders.TryRemove(cacheKey, out SignatureProvider provider);
+            else
+                _verifyingSignatureProviders.TryRemove(cacheKey, out SignatureProvider provider);
         }
 
         /// <summary>
@@ -633,11 +659,11 @@ namespace Microsoft.IdentityModel.Tokens
             if (string.IsNullOrEmpty(signatureProvider.Key.KeyId))
                 return;
 
-            return;
-            //if (willCreateSignatures)
-            //    _signingSignatureProviders[GetSignatureProviderCacheKey(signatureProvider.Key, signatureProvider.Algorithm)] = signatureProvider;
-            //else
-            //    _verifyingSignatureProviders[GetSignatureProviderCacheKey(signatureProvider.Key, signatureProvider.Algorithm)] = signatureProvider;
+            var cacheKey = GetSignatureProviderCacheKey(signatureProvider.Key, signatureProvider.Algorithm);
+            if (willCreateSignatures)
+                _signingSignatureProviders.TryAdd(cacheKey, signatureProvider);
+            else
+                _verifyingSignatureProviders.TryAdd(cacheKey, signatureProvider);
         }
 
         private bool IsSupportedHashAlgorithm(string algorithm)

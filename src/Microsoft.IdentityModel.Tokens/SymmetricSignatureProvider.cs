@@ -115,12 +115,10 @@ namespace Microsoft.IdentityModel.Tokens
             if (key == null)
                 throw LogHelper.LogArgumentNullException(nameof(key));
 
-            SymmetricSecurityKey symmetricSecurityKey = key as SymmetricSecurityKey;
-            if (symmetricSecurityKey != null)
+            if (key is SymmetricSecurityKey symmetricSecurityKey)
                 return symmetricSecurityKey.Key;
 
-            JsonWebKey jsonWebKey = key as JsonWebKey;
-            if (jsonWebKey != null && jsonWebKey.K != null && jsonWebKey.Kty == JsonWebAlgorithmsKeyTypes.Octet)
+            if (key is JsonWebKey jsonWebKey && jsonWebKey.K != null && jsonWebKey.Kty == JsonWebAlgorithmsKeyTypes.Octet)
                 return Base64UrlEncoder.DecodeBytes(jsonWebKey.K);
 
             throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX10667, key)));
@@ -152,14 +150,28 @@ namespace Microsoft.IdentityModel.Tokens
                 throw LogHelper.LogArgumentNullException("input");
 
             if (_disposed)
-                throw LogHelper.LogExceptionMessage(new ObjectDisposedException(GetType().ToString()));
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
+                throw LogHelper.LogExceptionMessage(new ObjectDisposedException(typeof(SymmetricSignatureProvider).ToString()));
+            }
 
             if (_keyedHash == null)
-                throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogMessages.IDX10623));
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
+                throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogMessages.IDX10624));
+            }
 
             LogHelper.LogInformation(LogMessages.IDX10642, input);
 
-            return _keyedHash.ComputeHash(input);
+            try
+            {
+                return _keyedHash.ComputeHash(input);
+            }
+            catch
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
+                throw;
+            }
         }
 
         /// <summary>
@@ -183,14 +195,28 @@ namespace Microsoft.IdentityModel.Tokens
                 throw LogHelper.LogArgumentNullException(nameof(signature));
 
             if (_disposed)
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
                 throw LogHelper.LogExceptionMessage(new ObjectDisposedException(typeof(SymmetricSignatureProvider).ToString()));
+            }
 
             if (_keyedHash == null)
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
                 throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogMessages.IDX10624));
+            }
 
             LogHelper.LogInformation(LogMessages.IDX10643, input);
 
-            return Utility.AreEqual(signature, _keyedHash.ComputeHash(input));
+            try
+            {
+                return Utility.AreEqual(signature, _keyedHash.ComputeHash(input));
+            }
+            catch
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
+                throw;
+            }
         }
 
         /// <summary>
@@ -219,13 +245,28 @@ namespace Microsoft.IdentityModel.Tokens
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX10655, length)));
 
             if (_disposed)
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
                 throw LogHelper.LogExceptionMessage(new ObjectDisposedException(typeof(SymmetricSignatureProvider).ToString()));
+            }
 
             if (_keyedHash == null)
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
                 throw LogHelper.LogExceptionMessage(new InvalidOperationException(LogMessages.IDX10624));
+            }
 
             LogHelper.LogInformation(LogMessages.IDX10643, input);
-            return Utility.AreEqual(signature, _keyedHash.ComputeHash(input), length);
+
+            try
+            {
+                return Utility.AreEqual(signature, _keyedHash.ComputeHash(input), length);
+            }
+            catch
+            {
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
+                throw;
+            }
         }
 
         #region IDisposable Members
@@ -239,6 +280,7 @@ namespace Microsoft.IdentityModel.Tokens
             if (!_disposed)
             {
                 _disposed = true;
+                CryptoProviderFactory?.RemoveCachedSignatureProvider(this);
 
                 if (disposing)
                 {
